@@ -30,12 +30,16 @@ A beautiful, mobile-first responsive web application to help pregnant mothers tr
    ```bash
    npm install
    ```
-3. The server uses a SQLite database which will be created automatically.
+3. **Create a `.env` file** in the `backend` directory:
+   ```env
+   PORT=5000
+   JWT_SECRET=your_super_secret_key_here
+   DATABASE_PATH=./database.sqlite
+   ```
 4. Start the server:
    ```bash
    node server.js
    ```
-   The backend will run on `http://localhost:5000`.
 
 ### 2. Frontend Setup
 1. Navigate to the `frontend` folder:
@@ -46,7 +50,12 @@ A beautiful, mobile-first responsive web application to help pregnant mothers tr
    ```bash
    npm install
    ```
-3. Start the development server:
+3. **(Optional) Create a `.env` file** in the `frontend` directory for production:
+   ```env
+   VITE_API_URL=/api
+   ```
+   *Note: If you are using the Nginx proxy method described in our discussion, the frontend will default to `/api` even without this file.*
+4. Start the development server:
    ```bash
    npm run dev
    ```
