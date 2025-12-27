@@ -1,0 +1,17 @@
+# Master Gitignore
+node_modules/
+.env
+*.sqlite
+*.log
+dist/
+.DS_Store
+
+# Frontend specifics
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# Backend specifics
+backend/node_modules/
+backend/.env
+backend/*.sqlite
