@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import api from '../api';
-import { format, parseISO } from 'date-fns';
-import { Calendar, Download, Trophy, TrendingUp, Clock, ChevronRight, ArrowLeft } from 'lucide-react';
+import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval, subMonths, eachMonthOfInterval } from 'date-fns';
+import { Calendar, Download, Trophy, TrendingUp, Clock, ChevronRight, ArrowLeft, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const History = () => {
@@ -11,6 +11,9 @@ const History = () => {
     const [selectedDate, setSelectedDate] = useState(null);
     const [dayKicks, setDayKicks] = useState([]);
     const [loadingDetails, setLoadingDetails] = useState(false);
+
+    // Month Filter State
+    const [filterMonth, setFilterMonth] = useState('all');
 
     const fetchHistory = async () => {
         try {
@@ -28,6 +31,31 @@ const History = () => {
         fetchHistory();
     }, []);
 
+    // Generate list of available months directly from the data
+    const availableMonths = useMemo(() => {
+        if (history.length === 0) return [];
+
+        const monthsMap = new Map();
+        history.forEach(day => {
+            const monthKey = format(parseISO(day.date), 'yyyy-MM');
+            if (!monthsMap.has(monthKey)) {
+                monthsMap.set(monthKey, parseISO(day.date));
+            }
+        });
+
+        // Sort months in descending order (most recent first)
+        return Array.from(monthsMap.values()).sort((a, b) => b - a);
+    }, [history]);
+
+    // Filtered History
+    const filteredHistory = useMemo(() => {
+        if (filterMonth === 'all') return history;
+
+        return history.filter(day => {
+            return day.date.startsWith(filterMonth);
+        });
+    }, [history, filterMonth]);
+
     const fetchDayDetails = async (date) => {
         try {
             setLoadingDetails(true);
@@ -42,8 +70,9 @@ const History = () => {
     };
 
     const downloadCSV = () => {
+        const dataToExport = filteredHistory;
         const headers = ['Date', 'Kick Count'];
-        const rows = history.map(h => [`"${h.date}"`, h.count]);
+        const rows = dataToExport.map(h => [`"${h.date}"`, h.count]);
         const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');
 
         const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -51,7 +80,7 @@ const History = () => {
         const a = document.createElement('a');
         a.setAttribute('hidden', '');
         a.setAttribute('href', url);
-        a.setAttribute('download', `kick_history.csv`);
+        a.setAttribute('download', `kick_history_${filterMonth}.csv`);
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -89,13 +118,49 @@ const History = () => {
                             </motion.button>
                         </div>
 
+                        {/* Month Filter Dropdown */}
+                        <div className="card" style={{ padding: '16px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                            <div style={{ background: 'var(--bg-top)', padding: '10px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Filter size={20} color="var(--primary)" />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>
+                                    Filter by Month
+                                </label>
+                                <select
+                                    value={filterMonth}
+                                    onChange={(e) => setFilterMonth(e.target.value)}
+                                    style={{
+                                        width: '100%',
+                                        padding: '8px 0',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        borderBottom: '2px solid var(--bg-top)',
+                                        fontFamily: 'inherit',
+                                        fontSize: '1rem',
+                                        fontWeight: 600,
+                                        color: 'var(--text)',
+                                        cursor: 'pointer',
+                                        outline: 'none'
+                                    }}
+                                >
+                                    <option value="all">📅 All Time History</option>
+                                    {availableMonths.map(month => (
+                                        <option key={format(month, 'yyyy-MM')} value={format(month, 'yyyy-MM')}>
+                                            🌙 {format(month, 'MMMM yyyy')}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
                         <div className="card" style={{ height: '350px', padding: '24px 12px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1.5rem', padding: '0 12px' }}>
                                 <TrendingUp size={20} color="var(--primary)" />
                                 <h2 style={{ margin: 0 }}>Daily Trends</h2>
                             </div>
                             <ResponsiveContainer width="100%" height="80%">
-                                <BarChart data={history}>
+                                <BarChart data={filteredHistory}>
                                     <defs>
                                         <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
                                             <stop offset="0%" stopColor="var(--primary)" stopOpacity={1} />
@@ -117,7 +182,6 @@ const History = () => {
                                     />
                                     <Tooltip
                                         cursor={{ fill: 'rgba(0,0,0,0.02)' }}
-                                        onClick={(data) => data && fetchDayDetails(data.activeLabel)}
                                         contentStyle={{
                                             borderRadius: '16px',
                                             border: 'none',
@@ -132,7 +196,7 @@ const History = () => {
                                         onClick={(data) => fetchDayDetails(data.date)}
                                         style={{ cursor: 'pointer' }}
                                     >
-                                        {history.map((entry, index) => (
+                                        {filteredHistory.map((entry, index) => (
                                             <Cell
                                                 key={`cell-${index}`}
                                                 fill={entry.count < 10 ? 'var(--danger)' : 'url(#barGradient)'}
@@ -142,20 +206,20 @@ const History = () => {
                                 </BarChart>
                             </ResponsiveContainer>
                             <p className="text-center" style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginTop: '0.5rem' }}>
-                                Tip: Click a bar to see specific times
+                                Displaying {filteredHistory.length} days
                             </p>
                         </div>
 
                         <div className="card">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1.5rem' }}>
                                 <Calendar size={20} color="var(--primary)" />
-                                <h2 style={{ margin: 0 }}>Recent Logs</h2>
+                                <h2 style={{ margin: 0 }}>Logs for {filterMonth === 'all' ? 'All Time' : format(parseISO(filterMonth), 'MMMM yyyy')}</h2>
                             </div>
                             <div className="history-list">
-                                {history.length === 0 ? (
-                                    <p className="text-center" style={{ color: 'var(--text-light)', padding: '20px' }}>No history yet.</p>
+                                {filteredHistory.length === 0 ? (
+                                    <p className="text-center" style={{ color: 'var(--text-light)', padding: '20px' }}>No records found for this period.</p>
                                 ) : (
-                                    [...history].reverse().map((day) => (
+                                    [...filteredHistory].reverse().map((day) => (
                                         <motion.div
                                             whileTap={{ scale: 0.98 }}
                                             key={day.date}
